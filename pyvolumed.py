@@ -1,18 +1,45 @@
 #!/usr/bin/env python3
 
 import gi
+import os
 import select
 import threading
 from alsaaudio import Mixer
 
-gi.require_version('Gtk', '3.0')
+gi.require_version('GLib', '2.0')
 gi.require_version('Notify', '0.7')
-from gi.repository import Gtk
+from gi.repository import GLib
 from gi.repository import Notify
 
 
 ALSA_DEVICE = 'PCM'
 NOTIF_TIMEOUT = 3000
+
+
+def start_mixer_poll_thread(mixer, notif):
+    poll = select.poll()
+    for fd, events in mixer.polldescriptors():
+        poll.register(fd, events)
+
+    # We need a way to end the poll thread. We use a pipe: poll on its
+    # read end and (when we need to end the thread) we write to its write end.
+    quit_rfd, quit_wfd = os.pipe()
+    poll.register(quit_rfd, select.POLLIN)
+
+    def poll_mixer():
+        old_volume = -1
+        while True:
+            for fd, _ in poll.poll():
+                if fd == quit_rfd:
+                    return
+                else:
+                    mixer.handleevents()
+                    old_volume = volume_changed(mixer, old_volume, notif)
+
+    thread = threading.Thread(target=poll_mixer)
+    thread.start()
+
+    return (thread, quit_wfd)
 
 
 def volume_changed(mixer, old_volume, notif):
@@ -43,22 +70,24 @@ def main():
     notif = Notify.Notification.new('Volume')
     notif.set_timeout(NOTIF_TIMEOUT)
 
-    def poller():
-        mixer = Mixer(ALSA_DEVICE)
-        poll = select.poll()
-        for fd, events in mixer.polldescriptors():
-            poll.register(fd, events)
+    mixer = Mixer('PCM')
+    thread, quit_wfd = start_mixer_poll_thread(mixer, notif)
 
-        old_volume = -1
-        while True:
-            for _ in poll.poll():
-                mixer.handleevents()
-                old_volume = volume_changed(mixer, old_volume, notif)
+    # Apparently need to run the GLib main loop, otherwise the notification
+    # is lost after 10 minutes or so, and we get a
+    # "The name was not provided by any .service files" error from DBus
+    # when showing it.
+    loop = GLib.MainLoop()
+    try:
+        loop.run()
+    except KeyboardInterrupt:
+        pass
 
-    thr = threading.Thread(target=poller)
-    thr.start()
+    os.write(quit_wfd, b'quit')
+    thread.join()
 
-    Gtk.main()
+    notif.close()
+    Notify.uninit()
 
 
 if __name__ == '__main__':
