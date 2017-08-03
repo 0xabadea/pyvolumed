@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 
-import select
 import gi
+import select
+import threading
 from alsaaudio import Mixer
 
+gi.require_version('Gtk', '3.0')
 gi.require_version('Notify', '0.7')
+from gi.repository import Gtk
 from gi.repository import Notify
 
 
@@ -40,21 +43,22 @@ def main():
     notif = Notify.Notification.new('Volume')
     notif.set_timeout(NOTIF_TIMEOUT)
 
-    mixer = Mixer(ALSA_DEVICE)
-    poll = select.poll()
-    for fd, events in mixer.polldescriptors():
-        poll.register(fd, events)
+    def poller():
+        mixer = Mixer(ALSA_DEVICE)
+        poll = select.poll()
+        for fd, events in mixer.polldescriptors():
+            poll.register(fd, events)
 
-    old_volume = -1
-    while True:
-        try:
+        old_volume = -1
+        while True:
             for _ in poll.poll():
                 mixer.handleevents()
                 old_volume = volume_changed(mixer, old_volume, notif)
-        except KeyboardInterrupt:
-            break
 
-    Notify.uninit()
+    thr = threading.Thread(target=poller)
+    thr.start()
+
+    Gtk.main()
 
 
 if __name__ == '__main__':
