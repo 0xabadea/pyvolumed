@@ -70,7 +70,7 @@ def main():
     notif = Notify.Notification.new('Volume')
     notif.set_timeout(NOTIF_TIMEOUT)
 
-    mixer = Mixer('PCM')
+    mixer = Mixer(ALSA_DEVICE)
     thread, quit_wfd = start_mixer_poll_thread(mixer, notif)
 
     # Apparently need to run the GLib main loop, otherwise the notification
