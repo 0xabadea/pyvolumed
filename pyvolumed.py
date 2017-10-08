@@ -90,10 +90,9 @@ def main():
     Keybinder.bind('AudioLowerVolume', volume_key_callback, (mixer, -5))
     Keybinder.bind('AudioRaiseVolume', volume_key_callback, (mixer, 5))
 
-    # Apparently need to run the GLib main loop, otherwise the notification
-    # is lost after 10 minutes or so, and we get a
-    # "The name was not provided by any .service files" error from DBus
-    # when showing it.
+    # Apparently need to run the GLib main loop, otherwise the notification is
+    # lost after 10 minutes or so, and we get a "The name was not provided by
+    # any .service files" error from DBus when showing it.
     # We also need to run the loop for Keybinder to work. Actually we should
     # run the GTK loop, but that can't be interrupted by SIGINT, and the GLib
     # loop seems to work well too.
