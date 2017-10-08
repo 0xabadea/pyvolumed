@@ -7,13 +7,22 @@ import threading
 from alsaaudio import Mixer
 
 gi.require_version('GLib', '2.0')
+gi.require_version('Gtk', '3.0')
+gi.require_version('Keybinder', '3.0')
 gi.require_version('Notify', '0.7')
 from gi.repository import GLib
+from gi.repository import Gtk
+from gi.repository import Keybinder
 from gi.repository import Notify
 
 
 ALSA_DEVICE = 'PCM'
 NOTIF_TIMEOUT = 3000
+
+
+def volume_key_callback(keystr, user_data):
+    mixer, vol_chage = user_data
+    mixer.setvolume(max(mixer.getvolume()) + vol_chage)
 
 
 def start_mixer_poll_thread(mixer, notif):
@@ -66,6 +75,8 @@ def get_icon_name(volume):
 
 
 def main():
+    Gtk.init()
+
     Notify.init('Volume Control')
     notif = Notify.Notification.new('Volume')
     notif.set_timeout(NOTIF_TIMEOUT)
@@ -73,10 +84,17 @@ def main():
     mixer = Mixer(ALSA_DEVICE)
     thread, quit_wfd = start_mixer_poll_thread(mixer, notif)
 
+    Keybinder.init()
+    Keybinder.bind('AudioLowerVolume', volume_key_callback, (mixer, -5))
+    Keybinder.bind('AudioRaiseVolume', volume_key_callback, (mixer, 5))
+
     # Apparently need to run the GLib main loop, otherwise the notification
     # is lost after 10 minutes or so, and we get a
     # "The name was not provided by any .service files" error from DBus
     # when showing it.
+    # We also need to run the loop for Keybinder to work. Actually we should
+    # run the GTK loop, but that can't be interrupted by SIGINT, and the GLib
+    # loop seems to work well too.
     loop = GLib.MainLoop()
     try:
         loop.run()
