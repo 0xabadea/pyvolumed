@@ -21,8 +21,10 @@ NOTIF_TIMEOUT = 3000
 
 
 def volume_key_callback(keystr, user_data):
-    mixer, vol_chage = user_data
-    mixer.setvolume(max(mixer.getvolume()) + vol_chage)
+    mixer, vol_change = user_data
+    volume = max(mixer.getvolume())
+    new_volume = max(0, min(100, volume + vol_change))
+    mixer.setvolume(new_volume)
 
 
 def start_mixer_poll_thread(mixer, notif):
