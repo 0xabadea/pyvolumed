@@ -9,3 +9,5 @@ the volume of the S/PDIF output is the PCM control.
 ## Installation
 
 It requires PyGObject. Follow https://pygobject.readthedocs.io/en/latest/getting_started.html to install it for your distro.
+
+It also requires `libkeybinder3`, which can be installed with your distro's package manager.
