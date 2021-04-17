@@ -8,6 +8,16 @@ the volume of the S/PDIF output is the PCM control.
 
 ## Installation
 
-It requires PyGObject. Follow https://pygobject.readthedocs.io/en/latest/getting_started.html to install it for your distro.
+### Native packages
 
-It also requires `libkeybinder3`, which can be installed with your distro's package manager.
+It requires `libkeybinder3`, which can be installed with your distro's package manager.
+
+### Python packages
+
+#### PyGObject
+
+Follow https://pygobject.readthedocs.io/en/latest/getting_started.html to install it for your distro.
+
+#### PyAlsaAudio
+
+See https://github.com/larsimmisch/pyalsaaudio. For Arch Linux, see https://aur.archlinux.org/packages/python-pyalsaaudio.

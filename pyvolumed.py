@@ -16,20 +16,30 @@ from gi.repository import Keybinder
 from gi.repository import Notify
 
 
-ALSA_DEVICE = 'PCM'
+PCM_DEVICE = 'PCM'
+SPDIF_DEVICE = 'IEC958'
 NOTIF_TIMEOUT = 3000
 
 
 def volume_key_callback(keystr, user_data):
-    mixer, vol_change = user_data
-    volume = max(mixer.getvolume())
+    pcm_mixer, vol_change = user_data
+    volume = max(pcm_mixer.getvolume())
     new_volume = max(0, min(100, volume + vol_change))
-    mixer.setvolume(new_volume)
+    pcm_mixer.setvolume(new_volume)
 
 
-def start_mixer_poll_thread(mixer, notif):
+def mute_key_callback(keystr, user_data):
+    spdif_mixer = user_data
+    mute = max(spdif_mixer.getmute())
+    new_mute = 0 if mute else 1
+    spdif_mixer.setmute(new_mute)
+
+
+def start_mixer_poll_thread(pcm_mixer, pcm_notif, spdif_mixer, spdif_notif):
     poll = select.poll()
-    for fd, events in mixer.polldescriptors():
+    for fd, events in pcm_mixer.polldescriptors():
+        poll.register(fd, events)
+    for fd, events in spdif_mixer.polldescriptors():
         poll.register(fd, events)
 
     # We need a way to end the poll thread. We use a pipe: poll on its
@@ -38,14 +48,17 @@ def start_mixer_poll_thread(mixer, notif):
     poll.register(quit_rfd, select.POLLIN)
 
     def poll_mixer():
-        old_volume = -1
+        old_volume = pcm_volume_changed(pcm_mixer, None, pcm_notif)
+        old_mute = spdif_mute_changed(spdif_mixer, None, spdif_notif)
         while True:
             for fd, _ in poll.poll():
                 if fd == quit_rfd:
                     return
                 else:
-                    mixer.handleevents()
-                    old_volume = volume_changed(mixer, old_volume, notif)
+                    pcm_mixer.handleevents()
+                    old_volume = pcm_volume_changed(pcm_mixer, old_volume, pcm_notif)
+                    spdif_mixer.handleevents()
+                    old_mute = spdif_mute_changed(spdif_mixer, old_mute, spdif_notif)
 
     thread = threading.Thread(target=poll_mixer)
     thread.start()
@@ -53,15 +66,25 @@ def start_mixer_poll_thread(mixer, notif):
     return (thread, quit_wfd)
 
 
-def volume_changed(mixer, old_volume, notif):
-    volume = max(mixer.getvolume())
+def pcm_volume_changed(pcm_mixer, old_volume, pcm_notif):
+    volume = max(pcm_mixer.getvolume())
 
-    if volume != old_volume:
-        notif.update('Volume', icon=get_icon_name(volume))
-        notif.set_hint_int32('value', volume)
-        notif.show()
+    if old_volume != None and volume != old_volume:
+        pcm_notif.update('Volume', icon=get_icon_name(volume))
+        pcm_notif.set_hint_int32('value', volume)
+        pcm_notif.show()
 
     return volume
+
+
+def spdif_mute_changed(spdif_mixer, old_mute, spdif_notif):
+    mute = max(spdif_mixer.getmute())
+
+    if old_mute != None and mute != old_mute:
+        spdif_notif.update('S/PDIF ' + ('muted' if mute else 'unmuted'), icon=get_icon_name(0 if mute else 100))
+        spdif_notif.show()
+
+    return mute
 
 
 def get_icon_name(volume):
@@ -79,16 +102,21 @@ def get_icon_name(volume):
 def main():
     Gtk.init()
 
-    Notify.init('Volume Control')
-    notif = Notify.Notification.new('Volume')
-    notif.set_timeout(NOTIF_TIMEOUT)
+    Notify.init('pyvolumed')
+    pcm_notif = Notify.Notification.new('Volume')
+    pcm_notif.set_timeout(NOTIF_TIMEOUT)
+    spdif_notif = Notify.Notification.new('SPDIF')
+    spdif_notif.set_timeout(NOTIF_TIMEOUT)
 
-    mixer = Mixer(ALSA_DEVICE)
-    thread, quit_wfd = start_mixer_poll_thread(mixer, notif)
+    pcm_mixer = Mixer(PCM_DEVICE)
+    spdif_mixer = Mixer(SPDIF_DEVICE)
+
+    thread, quit_wfd = start_mixer_poll_thread(pcm_mixer, pcm_notif, spdif_mixer, spdif_notif)
 
     Keybinder.init()
-    Keybinder.bind('AudioLowerVolume', volume_key_callback, (mixer, -5))
-    Keybinder.bind('AudioRaiseVolume', volume_key_callback, (mixer, 5))
+    Keybinder.bind('AudioLowerVolume', volume_key_callback, (pcm_mixer, -5))
+    Keybinder.bind('AudioRaiseVolume', volume_key_callback, (pcm_mixer, 5))
+    Keybinder.bind('AudioMute', mute_key_callback, spdif_mixer)
 
     # Apparently need to run the GLib main loop, otherwise the notification is
     # lost after 10 minutes or so, and we get a "The name was not provided by
@@ -105,7 +133,8 @@ def main():
     os.write(quit_wfd, b'quit')
     thread.join()
 
-    notif.close()
+    spdif_notif.close()
+    pcm_notif.close()
     Notify.uninit()
 
 
