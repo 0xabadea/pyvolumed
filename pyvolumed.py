@@ -71,7 +71,7 @@ def pcm_volume_changed(pcm_mixer, old_volume, pcm_notif):
 
     if old_volume != None and volume != old_volume:
         pcm_notif.update('Volume', icon=get_icon_name(volume))
-        pcm_notif.set_hint_int32('value', volume)
+        pcm_notif.set_hint('value', GLib.Variant("i", volume))
         pcm_notif.show()
 
     return volume
