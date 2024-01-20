@@ -116,6 +116,8 @@ def main():
     Keybinder.init()
     Keybinder.bind('AudioLowerVolume', volume_key_callback, (pcm_mixer, -5))
     Keybinder.bind('AudioRaiseVolume', volume_key_callback, (pcm_mixer, 5))
+    Keybinder.bind('Scroll_Lock', volume_key_callback, (pcm_mixer, -5))
+    Keybinder.bind('Pause', volume_key_callback, (pcm_mixer, 5))
     Keybinder.bind('AudioMute', mute_key_callback, spdif_mixer)
 
     # Apparently need to run the GLib main loop, otherwise the notification is
